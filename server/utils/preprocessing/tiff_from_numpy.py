@@ -225,9 +225,9 @@ if __name__ == "__main__":
     
     
     # 1. Load and process your actual data
-    npy_data = np.load('/home/dario/Desktop/FirePrediction/inputs/chile_tile_(6656, 7168).npy')  # Replace with your file
-    
-    with open('/home/dario/Desktop/FirePrediction/data_pkl/chile_pre_tiles_data.pkl', 'rb') as f:  # Replace with your file
+    npy_data = np.load('/home/diego/Desktop/FirePrediction/server/utils/examples/second_example.npy')  # Replace with your file
+
+    with open('/home/diego/Desktop/FirePrediction/data_pkl/chile_pre_tiles_data.pkl', 'rb') as f:  # Replace with your file
         metadata = pickle.load(f)
 
     spatial = metadata['spatial_extent']
@@ -260,9 +260,9 @@ if __name__ == "__main__":
     create_geotiff_from_pickle_metadata(
         npy_data=npy_data,
         pickle_metadata=metadata,
-        output_path='/home/dario/Desktop/chile_tile_(6656, 7168).tif',
+        output_path='/home/diego/Desktop/FirePrediction/server/utils/examples/result.tif',
         nodata=0  # Adjust based on your data
     )
     
     # 4. Verify the result
-    verify_created_geotiff('/home/dario/Desktop/chile_tile_(6656, 7168).tif')
+    verify_created_geotiff('/home/diego/Desktop/FirePrediction/server/utils/examples/result.tif')
