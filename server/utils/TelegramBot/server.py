@@ -175,56 +175,73 @@ def send_fire_alert(image_path, message):
     update_last_fire_alert(image_path, message)
     
     if subscribers and application:
-        def send_alerts():
+        async def send_alert_to_user(user_id):
             try:
-                # Create a new event loop for this thread
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                async def send_alert_to_user(user_id):
-                    try:
-                        # Check if image file exists
-                        if os.path.exists(image_path):
-                            # Send image with message using local file path
-                            with open(image_path, 'rb') as image_file:
-                                await application.bot.send_photo(
-                                    chat_id=user_id,
-                                    photo=image_file,
-                                    caption=message
-                                )
-                        else:
-                            logging.error(f"Image file not found: {image_path}")
-                            # Fallback to text only
-                            await application.bot.send_message(
-                                chat_id=user_id,
-                                text=message + "\n\n⚠️ Image file not available."
-                            )
-                    except Exception as e:
-                        logging.error(f"Error sending alert to {user_id}: {e}")
-                        # Fallback to text only
-                        try:
-                            await application.bot.send_message(
-                                chat_id=user_id,
-                                text=message
-                            )
-                        except Exception as e2:
-                            logging.error(f"Error sending fallback message to {user_id}: {e2}")
-                
-                async def send_to_all_users():
-                    for user_id in subscribers:
-                        await send_alert_to_user(user_id)
-                
-                # Run the async function
-                loop.run_until_complete(send_to_all_users())
-                loop.close()
-                    
+                # Check if image file exists
+                if os.path.exists(image_path):
+                    # Send image with message using local file path
+                    with open(image_path, 'rb') as image_file:
+                        await application.bot.send_photo(
+                            chat_id=user_id,
+                            photo=image_file,
+                            caption=message
+                        )
+                else:
+                    logging.error(f"Image file not found: {image_path}")
+                    # Fallback to text only
+                    await application.bot.send_message(
+                        chat_id=user_id,
+                        text=message + "\n\n⚠️ Image file not available."
+                    )
             except Exception as e:
-                logging.error(f"Error in send_alerts: {e}")
+                logging.error(f"Error sending alert to {user_id}: {e}")
+                # Fallback to text only
+                try:
+                    await application.bot.send_message(
+                        chat_id=user_id,
+                        text=message
+                    )
+                except Exception as e2:
+                    logging.error(f"Error sending fallback message to {user_id}: {e2}")
         
-        # Run in a separate thread to avoid blocking
-        alert_thread = threading.Thread(target=send_alerts)
-        alert_thread.start()
-        logging.info(f"Fire alert sent to {len(subscribers)} subscribers")
+        async def send_to_all_users():
+            tasks = []
+            for user_id in subscribers.copy():  # Use copy to avoid modification during iteration
+                tasks.append(send_alert_to_user(user_id))
+            
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Schedule the coroutine to run on the bot's event loop
+        try:
+            # Get the current event loop or create one if none exists
+            try:
+                loop = asyncio.get_running_loop()
+                # Use create_task to schedule the coroutine
+                asyncio.create_task(send_to_all_users())
+            except RuntimeError:
+                # No running loop, use run_coroutine_threadsafe with bot's loop
+                def run_in_thread():
+                    try:
+                        # Create a new event loop for this thread
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        loop.run_until_complete(send_to_all_users())
+                    except Exception as e:
+                        logging.error(f"Error in thread execution: {e}")
+                    finally:
+                        try:
+                            loop.close()
+                        except Exception as e:
+                            logging.error(f"Error closing loop: {e}")
+                
+                alert_thread = threading.Thread(target=run_in_thread, daemon=True)
+                alert_thread.start()
+                
+        except Exception as e:
+            logging.error(f"Error scheduling alert sending: {e}")
+        
+        logging.info(f"Fire alert scheduled for {len(subscribers)} subscribers")
     else:
         logging.warning("No subscribers or application not initialized")
 
@@ -347,35 +364,53 @@ def send_simple_alert(message_text):
         message_text (str): The alert message to send
     """
     if subscribers and application:
-        def send_text_alerts():
+        async def send_text_to_user(user_id):
             try:
-                # Create a new event loop for this thread
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                async def send_text_to_user(user_id):
-                    try:
-                        await application.bot.send_message(
-                            chat_id=user_id,
-                            text=message_text
-                        )
-                    except Exception as e:
-                        logging.error(f"Error sending text alert to {user_id}: {e}")
-                
-                async def send_to_all_users():
-                    for user_id in subscribers:
-                        await send_text_to_user(user_id)
-                
-                # Run the async function
-                loop.run_until_complete(send_to_all_users())
-                loop.close()
-                    
+                await application.bot.send_message(
+                    chat_id=user_id,
+                    text=message_text
+                )
             except Exception as e:
-                logging.error(f"Error in send_text_alerts: {e}")
+                logging.error(f"Error sending text alert to {user_id}: {e}")
         
-        alert_thread = threading.Thread(target=send_text_alerts)
-        alert_thread.start()
-        logging.info(f"Text alert sent to {len(subscribers)} subscribers")
+        async def send_to_all_users():
+            tasks = []
+            for user_id in subscribers.copy():  # Use copy to avoid modification during iteration
+                tasks.append(send_text_to_user(user_id))
+            
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Schedule the coroutine to run on the bot's event loop
+        try:
+            # Get the current event loop or create one if none exists
+            try:
+                loop = asyncio.get_running_loop()
+                # Use create_task to schedule the coroutine
+                asyncio.create_task(send_to_all_users())
+            except RuntimeError:
+                # No running loop, use run_coroutine_threadsafe with bot's loop
+                def run_in_thread():
+                    try:
+                        # Create a new event loop for this thread
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        loop.run_until_complete(send_to_all_users())
+                    except Exception as e:
+                        logging.error(f"Error in thread execution: {e}")
+                    finally:
+                        try:
+                            loop.close()
+                        except Exception as e:
+                            logging.error(f"Error closing loop: {e}")
+                
+                alert_thread = threading.Thread(target=run_in_thread, daemon=True)
+                alert_thread.start()
+                
+        except Exception as e:
+            logging.error(f"Error scheduling text alert sending: {e}")
+        
+        logging.info(f"Text alert scheduled for {len(subscribers)} subscribers")
     else:
         logging.warning("No subscribers or application not initialized")
 
@@ -443,7 +478,6 @@ async def api_send_fire_alert_with_risk(
         dict: Status and alert information
     """
     try:
-        send_fire_alert(image_path, custom_message)
         send_fire_alert_with_risk_level(image_path, job_id, risk_level, custom_message)
         return {
             "status": "success",

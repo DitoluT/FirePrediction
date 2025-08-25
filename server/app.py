@@ -1248,9 +1248,8 @@ def process_fire_prediction(job_id: str, cloud_job_id: str):
             
             if os.path.exists(fire_prob_path):
                 fire_prob = np.load(fire_prob_path)
-                
-                # Count pixels with probability > 0.5
-                high_risk_pixels = np.sum(fire_prob > 0.5)
+                # Count pixels with probability > 0.7
+                high_risk_pixels = np.sum(fire_prob > 0.7)
                 
                 if high_risk_pixels > 1000:
                     print("High risk tile found")
